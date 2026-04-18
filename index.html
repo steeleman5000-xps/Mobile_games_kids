@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hangman for Kids 🎈</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      user-select: none;
+    }
+
+    h1 {
+      color: #fff;
+      font-size: 2rem;
+      margin-bottom: 8px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    #category-label {
+      color: #f0e6ff;
+      font-size: 1rem;
+      margin-bottom: 12px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    #game-container {
+      background: #fff;
+      border-radius: 24px;
+      padding: 20px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* ── Hangman SVG ── */
+    #hangman-svg {
+      width: 180px;
+      height: 180px;
+    }
+
+    .hm-part { stroke: #333; stroke-width: 5; stroke-linecap: round; }
+    .hm-part.hidden { display: none; }
+
+    /* ── Wrong guesses counter ── */
+    #wrong-label {
+      font-size: 0.85rem;
+      color: #888;
+      font-weight: 600;
+    }
+
+    /* ── Word display ── */
+    #word-display {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .letter-box {
+      width: 36px;
+      height: 44px;
+      border-bottom: 4px solid #764ba2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #333;
+      text-transform: uppercase;
+      transition: transform 0.2s;
+    }
+
+    .letter-box.revealed { animation: popIn 0.3s ease; }
+
+    @keyframes popIn {
+      0%   { transform: scale(0); }
+      70%  { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+
+    .letter-box.space-box {
+      border-bottom: none;
+      width: 18px;
+    }
+
+    /* ── Hint ── */
+    #hint-area {
+      font-size: 0.9rem;
+      color: #888;
+      min-height: 20px;
+      text-align: center;
+    }
+
+    /* ── Keyboard ── */
+    #keyboard {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .key-btn {
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: 10px;
+      background: #667eea;
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s, opacity 0.15s;
+    }
+
+    .key-btn:hover:not(:disabled) { background: #764ba2; transform: scale(1.08); }
+    .key-btn:active:not(:disabled) { transform: scale(0.95); }
+
+    .key-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .key-btn.wrong  { background: #e74c3c; }
+    .key-btn.correct{ background: #2ecc71; }
+
+    /* ── Status message ── */
+    #status-msg {
+      font-size: 1.3rem;
+      font-weight: 700;
+      min-height: 32px;
+      text-align: center;
+    }
+
+    #status-msg.win  { color: #27ae60; }
+    #status-msg.lose { color: #e74c3c; }
+
+    /* ── New game button ── */
+    #new-game-btn {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: #fff;
+      border: none;
+      border-radius: 50px;
+      padding: 12px 36px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(245,87,108,0.4);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    #new-game-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(245,87,108,0.5); }
+    #new-game-btn:active { transform: translateY(0); }
+
+    /* ── Score strip ── */
+    #score-strip {
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      display: flex;
+      gap: 24px;
+    }
+    #score-strip span { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; }
+  </style>
+</head>
+<body>
+
+  <h1>🎈 Hangman</h1>
+  <div id="score-strip">
+    <span>🏆 Wins: <b id="wins">0</b></span>
+    <span>💔 Losses: <b id="losses">0</b></span>
+  </div>
+  <br/>
+
+  <div id="game-container">
+    <div id="category-label">Category: <span id="cat-name">—</span></div>
+
+    <!-- Hangman drawing -->
+    <svg id="hangman-svg" viewBox="0 0 200 200">
+      <!-- Gallows (always visible) -->
+      <line x1="20" y1="190" x2="180" y2="190" class="hm-part" />
+      <line x1="60"  y1="190" x2="60"  y2="10"  class="hm-part" />
+      <line x1="60"  y1="10"  x2="130" y2="10"  class="hm-part" />
+      <line x1="130" y1="10"  x2="130" y2="35"  class="hm-part" />
+      <!-- Body parts (revealed on wrong guesses) -->
+      <!-- 1: head -->
+      <circle id="hm-head" cx="130" cy="52" r="17" fill="none" class="hm-part hidden" />
+      <!-- 2: body -->
+      <line id="hm-body" x1="130" y1="69" x2="130" y2="120" class="hm-part hidden" />
+      <!-- 3: left arm -->
+      <line id="hm-larm" x1="130" y1="80" x2="105" y2="105" class="hm-part hidden" />
+      <!-- 4: right arm -->
+      <line id="hm-rarm" x1="130" y1="80" x2="155" y2="105" class="hm-part hidden" />
+      <!-- 5: left leg -->
+      <line id="hm-lleg" x1="130" y1="120" x2="105" y2="150" class="hm-part hidden" />
+      <!-- 6: right leg -->
+      <line id="hm-rleg" x1="130" y1="120" x2="155" y2="150" class="hm-part hidden" />
+    </svg>
+
+    <div id="wrong-label">Wrong guesses: <span id="wrong-count">0</span> / 6</div>
+
+    <div id="word-display"></div>
+
+    <div id="hint-area"></div>
+
+    <div id="keyboard"></div>
+
+    <div id="status-msg"></div>
+
+    <button id="new-game-btn">New Game 🎲</button>
+  </div>
+
+<script>
+  const WORDS = [
+    // Animals
+    { word: "CAT",      category: "Animals",  hint: "Meows and purrs" },
+    { word: "DOG",      category: "Animals",  hint: "Man's best friend" },
+    { word: "FISH",     category: "Animals",  hint: "Lives in water" },
+    { word: "BIRD",     category: "Animals",  hint: "Has feathers and wings" },
+    { word: "LION",     category: "Animals",  hint: "King of the jungle" },
+    { word: "BEAR",     category: "Animals",  hint: "Loves honey" },
+    { word: "FROG",     category: "Animals",  hint: "Hops and says ribbit" },
+    { word: "DUCK",     category: "Animals",  hint: "Goes quack quack" },
+    { word: "HORSE",    category: "Animals",  hint: "You can ride it" },
+    { word: "SHARK",    category: "Animals",  hint: "Big fish with sharp teeth" },
+    { word: "TIGER",    category: "Animals",  hint: "Has orange stripes" },
+    { word: "RABBIT",   category: "Animals",  hint: "Has long ears and hops" },
+    { word: "MONKEY",   category: "Animals",  hint: "Loves bananas" },
+    { word: "PENGUIN",  category: "Animals",  hint: "A bird that cannot fly" },
+    { word: "ELEPHANT", category: "Animals",  hint: "Has a very long trunk" },
+    { word: "GIRAFFE",  category: "Animals",  hint: "Has the longest neck" },
+    // Fruits
+    { word: "APPLE",    category: "Fruits",   hint: "Red, green, or yellow" },
+    { word: "BANANA",   category: "Fruits",   hint: "Yellow and curved" },
+    { word: "GRAPE",    category: "Fruits",   hint: "Grows in bunches" },
+    { word: "MANGO",    category: "Fruits",   hint: "Tropical orange fruit" },
+    { word: "ORANGE",   category: "Fruits",   hint: "Same name as the colour" },
+    { word: "LEMON",    category: "Fruits",   hint: "Very sour and yellow" },
+    { word: "CHERRY",   category: "Fruits",   hint: "Small red fruit on a stem" },
+    { word: "PEACH",    category: "Fruits",   hint: "Soft, fuzzy and sweet" },
+    { word: "MELON",    category: "Fruits",   hint: "Big, round, and juicy" },
+    { word: "PEAR",     category: "Fruits",   hint: "Shaped like a teardrop" },
+    // Colors
+    { word: "RED",      category: "Colors",   hint: "Color of fire trucks" },
+    { word: "BLUE",     category: "Colors",   hint: "Color of the sky" },
+    { word: "GREEN",    category: "Colors",   hint: "Color of grass" },
+    { word: "YELLOW",   category: "Colors",   hint: "Color of the sun" },
+    { word: "PURPLE",   category: "Colors",   hint: "Mix of red and blue" },
+    { word: "ORANGE",   category: "Colors",   hint: "Color of a pumpkin" },
+    { word: "PINK",     category: "Colors",   hint: "Light shade of red" },
+    // Things
+    { word: "BOOK",     category: "Things",   hint: "You read it" },
+    { word: "BALL",     category: "Things",   hint: "Round and you can throw it" },
+    { word: "CAKE",     category: "Things",   hint: "Sweet treat on birthdays" },
+    { word: "STAR",     category: "Things",   hint: "Shines in the night sky" },
+    { word: "MOON",     category: "Things",   hint: "Glows at night" },
+    { word: "CLOUD",    category: "Things",   hint: "Floats in the sky" },
+    { word: "RAIN",     category: "Things",   hint: "Falls from clouds" },
+    { word: "SNOW",     category: "Things",   hint: "White and cold" },
+    { word: "TRAIN",    category: "Things",   hint: "Travels on rails" },
+    { word: "PLANE",    category: "Things",   hint: "Flies in the sky" },
+    { word: "SHIP",     category: "Things",   hint: "Travels on the ocean" },
+    { word: "KITE",     category: "Things",   hint: "Flies with string in the wind" },
+    { word: "CLOCK",    category: "Things",   hint: "Tells you the time" },
+    { word: "CHAIR",    category: "Things",   hint: "You sit on it" },
+    { word: "TABLE",    category: "Things",   hint: "You eat at it" },
+    { word: "PHONE",    category: "Things",   hint: "You call people with it" },
+    // Food
+    { word: "PIZZA",    category: "Food",     hint: "Round and cheesy" },
+    { word: "BREAD",    category: "Food",     hint: "Made from flour and baked" },
+    { word: "MILK",     category: "Food",     hint: "Comes from a cow, white drink" },
+    { word: "CHEESE",   category: "Food",     hint: "Mice love this dairy treat" },
+    { word: "COOKIE",   category: "Food",     hint: "Sweet baked snack" },
+    { word: "CANDY",    category: "Food",     hint: "Sweet sugary treat" },
+  ];
+
+  const HM_PARTS = ["hm-head","hm-body","hm-larm","hm-rarm","hm-lleg","hm-rleg"];
+  const MAX_WRONG = 6;
+
+  let currentWord, currentHint, currentCategory;
+  let guessed, wrongCount, gameOver;
+  let wins = 0, losses = 0;
+
+  function pickWord() {
+    const entry = WORDS[Math.floor(Math.random() * WORDS.length)];
+    currentWord     = entry.word;
+    currentHint     = entry.hint;
+    currentCategory = entry.category;
+  }
+
+  function startGame() {
+    pickWord();
+    guessed   = new Set();
+    wrongCount = 0;
+    gameOver  = false;
+
+    document.getElementById("cat-name").textContent    = currentCategory;
+    document.getElementById("wrong-count").textContent = "0";
+    document.getElementById("status-msg").textContent  = "";
+    document.getElementById("status-msg").className    = "";
+    document.getElementById("hint-area").textContent   = "";
+
+    HM_PARTS.forEach(id => document.getElementById(id).classList.add("hidden"));
+
+    renderWord();
+    renderKeyboard();
+  }
+
+  function renderWord() {
+    const container = document.getElementById("word-display");
+    container.innerHTML = "";
+    for (const ch of currentWord) {
+      const box = document.createElement("div");
+      if (ch === " ") {
+        box.className = "letter-box space-box";
+      } else {
+        box.className = "letter-box";
+        if (guessed.has(ch)) {
+          box.textContent = ch;
+          box.classList.add("revealed");
+        }
+      }
+      container.appendChild(box);
+    }
+  }
+
+  function renderKeyboard() {
+    const kb = document.getElementById("keyboard");
+    kb.innerHTML = "";
+    for (let c = 65; c <= 90; c++) {
+      const letter = String.fromCharCode(c);
+      const btn = document.createElement("button");
+      btn.className = "key-btn";
+      btn.textContent = letter;
+      btn.dataset.letter = letter;
+      if (guessed.has(letter)) {
+        btn.disabled = true;
+        btn.classList.add(currentWord.includes(letter) ? "correct" : "wrong");
+      }
+      btn.addEventListener("click", () => handleGuess(letter));
+      kb.appendChild(btn);
+    }
+  }
+
+  function handleGuess(letter) {
+    if (gameOver || guessed.has(letter)) return;
+    guessed.add(letter);
+
+    const btn = document.querySelector(`.key-btn[data-letter="${letter}"]`);
+
+    if (currentWord.includes(letter)) {
+      btn.classList.add("correct");
+      renderWord();
+      if (isWon()) endGame(true);
+    } else {
+      wrongCount++;
+      document.getElementById("wrong-count").textContent = wrongCount;
+      document.getElementById(HM_PARTS[wrongCount - 1]).classList.remove("hidden");
+      btn.classList.add("wrong");
+      if (wrongCount >= MAX_WRONG) {
+        showHint();
+        endGame(false);
+      } else if (wrongCount === 3) {
+        showHint();
+      }
+    }
+    btn.disabled = true;
+  }
+
+  function showHint() {
+    document.getElementById("hint-area").textContent = "Hint: " + currentHint;
+  }
+
+  function isWon() {
+    return [...currentWord].every(ch => ch === " " || guessed.has(ch));
+  }
+
+  function endGame(won) {
+    gameOver = true;
+    const msg = document.getElementById("status-msg");
+    if (won) {
+      msg.textContent = "🎉 You got it! Great job!";
+      msg.className   = "win";
+      wins++;
+      document.getElementById("wins").textContent = wins;
+    } else {
+      msg.textContent = `😢 The word was: ${currentWord}`;
+      msg.className   = "lose";
+      losses++;
+      document.getElementById("losses").textContent = losses;
+      // Reveal word
+      renderFullWord();
+    }
+  }
+
+  function renderFullWord() {
+    const container = document.getElementById("word-display");
+    container.innerHTML = "";
+    for (const ch of currentWord) {
+      const box = document.createElement("div");
+      if (ch === " ") {
+        box.className = "letter-box space-box";
+      } else {
+        box.className = "letter-box revealed";
+        box.textContent = ch;
+        if (!guessed.has(ch)) box.style.color = "#e74c3c";
+      }
+      container.appendChild(box);
+    }
+  }
+
+  // Physical keyboard support
+  document.addEventListener("keydown", e => {
+    const letter = e.key.toUpperCase();
+    if (letter.length === 1 && letter >= "A" && letter <= "Z") {
+      handleGuess(letter);
+    }
+  });
+
+  document.getElementById("new-game-btn").addEventListener("click", startGame);
+
+  // Kick off
+  startGame();
+</script>
+</body>
+</html>
