@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tic Tac Toe ⭕</title>
+  <link rel="stylesheet" href="../css/shared.css" />
+  <style>
+    /* Mode selector */
+    #mode-selector { display: flex; gap: 10px; }
+    .mode-btn {
+      background: #f0ecff;
+      border: 3px solid #764ba2;
+      border-radius: 12px;
+      color: #764ba2;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 700;
+      padding: 8px 18px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mode-btn.active { background: #764ba2; color: #fff; }
+
+    /* Turn indicator */
+    #turn-indicator {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #555;
+      min-height: 24px;
+    }
+    #turn-indicator .x-color { color: #e74c3c; }
+    #turn-indicator .o-color { color: #3498db; }
+
+    /* Board */
+    #board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    .cell {
+      aspect-ratio: 1;
+      background: #f7f3ff;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 2.8rem;
+      font-weight: 900;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .cell:hover:not(.taken) { background: #ede8ff; transform: scale(1.04); }
+    .cell:active:not(.taken) { transform: scale(0.97); }
+    .cell.taken { cursor: default; }
+    .cell.x { color: #e74c3c; }
+    .cell.o { color: #3498db; }
+    .cell.winning { background: #d4f5e2; animation: popIn 0.35s ease; }
+
+    /* Score */
+    #score-detail {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 8px;
+      width: 100%;
+      max-width: 300px;
+      text-align: center;
+    }
+    .score-box { background: #f7f3ff; border-radius: 12px; padding: 10px 6px; }
+    .score-box .label { font-size: 0.75rem; color: #888; font-weight: 700; text-transform: uppercase; }
+    .score-box .value { font-size: 1.6rem; font-weight: 900; }
+    .score-box.x-box .value { color: #e74c3c; }
+    .score-box.o-box .value { color: #3498db; }
+    .score-box.draw-box .value { color: #e67e22; }
+    .score-box.draw-box .label { color: #e67e22; }
+  </style>
+</head>
+<body>
+
+  <button class="back-btn" onclick="location.href='../index.html'">← Games</button>
+  <h1 class="page-title">⭕ Tic Tac Toe</h1>
+
+  <div class="game-panel">
+    <!-- Mode selection -->
+    <div id="mode-selector">
+      <button class="mode-btn active" data-mode="2p">👥 2 Players</button>
+      <button class="mode-btn"        data-mode="cpu">🤖 vs Computer</button>
+    </div>
+
+    <!-- Turn indicator -->
+    <div id="turn-indicator"></div>
+
+    <!-- Board -->
+    <div id="board">
+      <button class="cell" data-idx="0"></button>
+      <button class="cell" data-idx="1"></button>
+      <button class="cell" data-idx="2"></button>
+      <button class="cell" data-idx="3"></button>
+      <button class="cell" data-idx="4"></button>
+      <button class="cell" data-idx="5"></button>
+      <button class="cell" data-idx="6"></button>
+      <button class="cell" data-idx="7"></button>
+      <button class="cell" data-idx="8"></button>
+    </div>
+
+    <!-- Status -->
+    <div id="status-msg" class="status-msg"></div>
+
+    <!-- Scoreboard -->
+    <div id="score-detail">
+      <div class="score-box x-box">
+        <div class="label" id="x-label">Player X</div>
+        <div class="value" id="x-score">0</div>
+      </div>
+      <div class="score-box draw-box">
+        <div class="label">Draw</div>
+        <div class="value" id="draw-score">0</div>
+      </div>
+      <div class="score-box o-box">
+        <div class="label" id="o-label">Player O</div>
+        <div class="value" id="o-score">0</div>
+      </div>
+    </div>
+
+    <button id="new-game-btn" class="primary-btn">New Game 🎲</button>
+  </div>
+
+<script>
+  const WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+  let board, currentPlayer, gameOver, mode;
+  let scores = { X: 0, O: 0, draw: 0 };
+
+  // ── Mode buttons ──
+  document.querySelectorAll(".mode-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      mode = btn.dataset.mode;
+      updateLabels();
+      startGame();
+    });
+  });
+  mode = "2p";
+
+  function updateLabels() {
+    document.getElementById("x-label").textContent = "Player X";
+    document.getElementById("o-label").textContent = mode === "cpu" ? "Computer" : "Player O";
+  }
+
+  function startGame() {
+    board         = Array(9).fill(null);
+    currentPlayer = "X";
+    gameOver      = false;
+
+    document.getElementById("status-msg").textContent = "";
+    document.getElementById("status-msg").className   = "status-msg";
+    setTurnText();
+
+    document.querySelectorAll(".cell").forEach(cell => {
+      cell.textContent = "";
+      cell.className   = "cell";
+      cell.disabled    = false;
+    });
+  }
+
+  function setTurnText() {
+    const who = currentPlayer === "X"
+      ? `<span class="x-color">✖ ${mode === "cpu" && currentPlayer === "O" ? "Computer" : "Player X"}</span>`
+      : `<span class="o-color">⭕ ${mode === "cpu" ? "Computer" : "Player O"}</span>`;
+    document.getElementById("turn-indicator").innerHTML = `${who}'s turn`;
+  }
+
+  // ── Cell click ──
+  document.querySelectorAll(".cell").forEach(cell => {
+    cell.addEventListener("click", () => {
+      const idx = +cell.dataset.idx;
+      if (gameOver || board[idx]) return;
+      // In CPU mode, ignore clicks when it's O's turn
+      if (mode === "cpu" && currentPlayer === "O") return;
+      makeMove(idx);
+    });
+  });
+
+  function makeMove(idx) {
+    board[idx] = currentPlayer;
+    const cell = document.querySelector(`.cell[data-idx="${idx}"]`);
+    cell.textContent = currentPlayer === "X" ? "✖" : "⭕";
+    cell.classList.add("taken", currentPlayer.toLowerCase());
+
+    const winLine = checkWin(board);
+    if (winLine) {
+      endGame("win", winLine);
+    } else if (board.every(Boolean)) {
+      endGame("draw");
+    } else {
+      currentPlayer = currentPlayer === "X" ? "O" : "X";
+      setTurnText();
+      if (mode === "cpu" && currentPlayer === "O") {
+        setTimeout(cpuMove, 420);
+      }
+    }
+  }
+
+  // ── CPU: wins > blocks > center > corner > any ──
+  function cpuMove() {
+    if (gameOver) return;
+    const idx = getBestMove();
+    makeMove(idx);
+  }
+
+  function getBestMove() {
+    // Win if possible
+    let m = findThreat("O"); if (m !== -1) return m;
+    // Block player win
+    m = findThreat("X"); if (m !== -1) return m;
+    // Take center
+    if (!board[4]) return 4;
+    // Take a corner
+    const corners = [0,2,6,8].filter(i => !board[i]);
+    if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
+    // Take any
+    const free = board.map((v,i) => v ? null : i).filter(i => i !== null);
+    return free[Math.floor(Math.random() * free.length)];
+  }
+
+  function findThreat(player) {
+    for (const [a,b,c] of WINS) {
+      const line = [board[a], board[b], board[c]];
+      const filled = line.filter(v => v === player).length;
+      const empty  = line.filter(v => !v).length;
+      if (filled === 2 && empty === 1) {
+        return [a,b,c][[board[a], board[b], board[c]].indexOf(null)];
+      }
+    }
+    return -1;
+  }
+
+  function checkWin(b) {
+    for (const line of WINS) {
+      const [a,bb,c] = line;
+      if (b[a] && b[a] === b[bb] && b[a] === b[c]) return line;
+    }
+    return null;
+  }
+
+  function endGame(result, winLine) {
+    gameOver = true;
+    const msg = document.getElementById("status-msg");
+
+    if (result === "win") {
+      winLine.forEach(i =>
+        document.querySelector(`.cell[data-idx="${i}"]`).classList.add("winning")
+      );
+      const winnerName = currentPlayer === "X"
+        ? "Player X"
+        : (mode === "cpu" ? "Computer" : "Player O");
+      const emoji = currentPlayer === "X" ? "🎉" : (mode === "cpu" ? "🤖" : "🎉");
+      msg.textContent = `${emoji} ${winnerName} wins!`;
+      msg.className   = "status-msg win";
+      scores[currentPlayer]++;
+      document.getElementById(`${currentPlayer.toLowerCase()}-score`).textContent = scores[currentPlayer];
+    } else {
+      msg.textContent = "🤝 It's a draw!";
+      msg.className   = "status-msg draw";
+      scores.draw++;
+      document.getElementById("draw-score").textContent = scores.draw;
+    }
+
+    document.getElementById("turn-indicator").textContent = "";
+  }
+
+  document.getElementById("new-game-btn").addEventListener("click", startGame);
+
+  updateLabels();
+  startGame();
+</script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Page base ── */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 12px 32px;
+  user-select: none;
+}
+
+/* ── Back button ── */
+.back-btn {
+  align-self: flex-start;
+  background: rgba(255,255,255,0.25);
+  border: none;
+  border-radius: 50px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  padding: 8px 18px;
+  transition: background 0.15s;
+}
+.back-btn:hover { background: rgba(255,255,255,0.4); }
+
+/* ── Game card panel ── */
+.game-panel {
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  padding: 20px;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* ── Page title ── */
+.page-title {
+  color: #fff;
+  font-size: 2rem;
+  margin-bottom: 4px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+/* ── Score strip ── */
+.score-strip {
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+.score-strip span {
+  background: rgba(255,255,255,0.2);
+  border-radius: 20px;
+  padding: 4px 14px;
+}
+
+/* ── Primary action button ── */
+.primary-btn {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  border: none;
+  border-radius: 50px;
+  box-shadow: 0 4px 15px rgba(245,87,108,0.4);
+  color: #fff;
+  cursor: pointer;
+  font-size: 1.05rem;
+  font-weight: 700;
+  padding: 12px 36px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.primary-btn:hover  { box-shadow: 0 8px 20px rgba(245,87,108,0.5); transform: translateY(-2px); }
+.primary-btn:active { transform: translateY(0); }
+
+/* ── Status message ── */
+.status-msg {
+  font-size: 1.2rem;
+  font-weight: 700;
+  min-height: 28px;
+  text-align: center;
+}
+.status-msg.win  { color: #27ae60; }
+.status-msg.lose { color: #e74c3c; }
+.status-msg.draw { color: #e67e22; }
+
+/* ── Pop-in animation ── */
+@keyframes popIn {
+  0%   { transform: scale(0); }
+  70%  { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
