@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Level 8 🃏</title>
+  <link rel="stylesheet" href="../css/shared.css" />
+  <style>
+    body { padding-top: 10px; }
+
+    .game-panel { max-width: 560px; padding: 14px; gap: 10px; }
+
+    /* ── Phase tracker ── */
+    #phase-banner {
+      width: 100%;
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      border-radius: 14px;
+      padding: 10px 12px;
+      text-align: center;
+      box-shadow: inset 0 0 0 2px #f59e0b55;
+    }
+    #phase-banner .phase-num {
+      font-size: 0.75rem; font-weight: 700; color: #92400e;
+      text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    #phase-banner .phase-desc {
+      font-size: 1.05rem; font-weight: 800; color: #78350f; margin-top: 2px;
+    }
+
+    /* ── Level indicators (top) ── */
+    #levels {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%;
+    }
+    .level-box {
+      background: #f7f3ff; border-radius: 12px; padding: 8px 10px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 0.85rem; font-weight: 700;
+    }
+    .level-box .who { color: #555; }
+    .level-box .lvl { color: #764ba2; font-size: 1.1rem; }
+    .level-box.active { background: #ede8ff; box-shadow: 0 0 0 2px #764ba2; }
+
+    /* ── Opponent row ── */
+    #cpu-row {
+      width: 100%; display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+    }
+    #cpu-label { font-size: 0.8rem; color: #666; font-weight: 700; }
+    #cpu-hand {
+      display: flex; justify-content: center; gap: -28px; flex-wrap: wrap;
+      min-height: 60px;
+    }
+    #cpu-hand .card-back {
+      width: 34px; height: 48px; border-radius: 6px;
+      background: repeating-linear-gradient(45deg, #764ba2, #764ba2 4px, #9a6bc5 4px, #9a6bc5 8px);
+      border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+      margin-left: -18px;
+    }
+    #cpu-hand .card-back:first-child { margin-left: 0; }
+
+    /* ── Center: piles ── */
+    #piles {
+      display: flex; justify-content: center; gap: 20px; margin: 4px 0;
+    }
+    .pile {
+      width: 70px; height: 98px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; position: relative; font-weight: 800;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .pile:hover { transform: translateY(-3px); box-shadow: 0 6px 14px rgba(0,0,0,0.15); }
+    .pile.disabled { cursor: not-allowed; opacity: 0.55; }
+    .pile.disabled:hover { transform: none; box-shadow: none; }
+    #deck {
+      background: repeating-linear-gradient(45deg, #764ba2, #764ba2 4px, #9a6bc5 4px, #9a6bc5 8px);
+      border: 3px solid #fff; color: #fff; font-size: 0.7rem;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+    }
+    #deck .count {
+      position: absolute; bottom: 4px; right: 4px;
+      background: rgba(0,0,0,0.55); border-radius: 6px;
+      padding: 1px 6px; font-size: 0.7rem;
+    }
+    #discard { background: #f7f3ff; border: 3px dashed #ccc; }
+    #discard.has-card { border: 3px solid #fff; padding: 0; background: transparent; }
+    .pile-label {
+      font-size: 0.7rem; color: rgba(255,255,255,0.9);
+      font-weight: 700; text-align: center; margin-top: 2px;
+    }
+
+    /* ── Laid-down phase areas ── */
+    .melds-area {
+      width: 100%; min-height: 20px;
+      display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;
+    }
+    .meld-group {
+      display: flex; gap: -10px; padding: 4px;
+      background: rgba(255,255,255,0.35); border-radius: 10px;
+      border: 2px dashed rgba(255,255,255,0.6);
+    }
+    .meld-group.cpu { background: rgba(231, 76, 60, 0.15); border-color: rgba(231,76,60,0.5); }
+    .meld-group.player { background: rgba(39, 174, 96, 0.15); border-color: rgba(39,174,96,0.5); }
+    .meld-group .card { margin-left: -18px; }
+    .meld-group .card:first-child { margin-left: 0; }
+
+    /* ── Card ── */
+    .card {
+      width: 44px; height: 62px; border-radius: 7px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 1.1rem; color: #fff;
+      border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+      cursor: pointer; flex-shrink: 0;
+      transition: transform 0.12s, box-shadow 0.12s;
+      position: relative;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 6px 12px rgba(0,0,0,0.28); }
+    .card.red    { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+    .card.blue   { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+    .card.green  { background: linear-gradient(135deg, #22c55e, #15803d); }
+    .card.yellow { background: linear-gradient(135deg, #eab308, #a16207); }
+    .card.wild   { background: linear-gradient(135deg, #ec4899, #7e22ce, #06b6d4); }
+    .card.selected { transform: translateY(-10px); box-shadow: 0 0 0 3px #f59e0b, 0 6px 12px rgba(0,0,0,0.3); }
+    .card .num { font-size: 1.3rem; line-height: 1; }
+    .card .sub { font-size: 0.6rem; margin-top: 2px; opacity: 0.9; }
+
+    /* ── Player hand ── */
+    #player-hand {
+      display: flex; flex-wrap: wrap; gap: 4px;
+      justify-content: center; width: 100%; min-height: 70px;
+    }
+
+    /* ── Action row ── */
+    #actions {
+      display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; width: 100%;
+    }
+    .action-btn {
+      background: linear-gradient(135deg, #764ba2, #667eea);
+      border: none; border-radius: 14px; color: #fff;
+      cursor: pointer; font-size: 0.85rem; font-weight: 700;
+      padding: 8px 14px;
+      transition: transform 0.12s, box-shadow 0.12s;
+    }
+    .action-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(118,75,162,0.4); }
+    .action-btn:disabled { background: #bbb; cursor: not-allowed; }
+    .action-btn.success { background: linear-gradient(135deg, #22c55e, #15803d); }
+    .action-btn.warn    { background: linear-gradient(135deg, #f59e0b, #d97706); }
+
+    /* ── Log ── */
+    #log {
+      width: 100%; max-height: 72px; overflow-y: auto;
+      background: #f7f3ff; border-radius: 10px;
+      padding: 6px 10px; font-size: 0.8rem; color: #555;
+    }
+    #log .entry { margin-bottom: 2px; }
+    #log .entry.cpu { color: #b91c1c; }
+    #log .entry.you { color: #15803d; }
+
+    /* ── Help modal ── */
+    #help-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+      display: none; align-items: center; justify-content: center; z-index: 10;
+      padding: 12px;
+    }
+    #help-overlay.show { display: flex; }
+    #help-card {
+      background: #fff; border-radius: 16px; padding: 20px;
+      max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto;
+    }
+    #help-card h3 { color: #764ba2; margin-bottom: 6px; }
+    #help-card p, #help-card li { font-size: 0.88rem; color: #444; line-height: 1.5; }
+    #help-card ol { padding-left: 22px; margin: 6px 0 10px; }
+    #help-card .close-help {
+      margin-top: 8px; background: #764ba2; color: #fff;
+      border: none; border-radius: 10px; padding: 8px 18px;
+      font-weight: 700; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <button class="back-btn" onclick="location.href='../index.html'">← Games</button>
+  <h1 class="page-title">🃏 Level 8</h1>
+
+  <div class="game-panel">
+
+    <!-- Level indicators -->
+    <div id="levels">
+      <div class="level-box" id="lvl-you">
+        <span class="who">🧒 You</span><span class="lvl">Lvl 1</span>
+      </div>
+      <div class="level-box" id="lvl-cpu">
+        <span class="who">🤖 Computer</span><span class="lvl">Lvl 1</span>
+      </div>
+    </div>
+
+    <!-- Current phase goal -->
+    <div id="phase-banner">
+      <div class="phase-num" id="phase-num">Your Phase 1</div>
+      <div class="phase-desc" id="phase-desc">2 sets of 3</div>
+    </div>
+
+    <!-- CPU -->
+    <div id="cpu-row">
+      <div id="cpu-label">🤖 Computer — <span id="cpu-count">10</span> cards</div>
+      <div id="cpu-hand"></div>
+      <div class="melds-area" id="cpu-melds"></div>
+    </div>
+
+    <!-- Piles -->
+    <div id="piles">
+      <div>
+        <div id="deck" class="pile"><div class="count" id="deck-count">0</div></div>
+        <div class="pile-label" style="color:#555">Draw</div>
+      </div>
+      <div>
+        <div id="discard" class="pile"></div>
+        <div class="pile-label" style="color:#555">Discard</div>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div id="status-msg" class="status-msg" style="font-size:1rem"></div>
+
+    <!-- Actions -->
+    <div id="actions">
+      <button class="action-btn success" id="lay-btn" disabled>Lay Phase</button>
+      <button class="action-btn" id="hit-btn" disabled>Play on Phase</button>
+      <button class="action-btn warn" id="discard-btn" disabled>Discard Selected</button>
+      <button class="action-btn" id="help-btn">❓ How to Play</button>
+    </div>
+
+    <!-- Player melds -->
+    <div class="melds-area" id="player-melds"></div>
+
+    <!-- Player hand -->
+    <div id="player-hand"></div>
+
+    <!-- Log -->
+    <div id="log"></div>
+
+    <button id="new-round-btn" class="primary-btn" style="display:none">Next Round 🎲</button>
+  </div>
+
+  <!-- Help -->
+  <div id="help-overlay">
+    <div id="help-card">
+      <h3>🃏 How to Play Level 8</h3>
+      <p><b>Goal:</b> Complete all 8 phases before the computer!</p>
+      <p><b>Each turn:</b></p>
+      <ol>
+        <li>Tap the <b>Draw pile</b> or the <b>Discard</b> to take a card.</li>
+        <li>(Optional) Tap cards in your hand to select them, then press <b>Lay Phase</b> when they match the goal.</li>
+        <li>(Optional) If you've laid your phase, tap cards then <b>Play on Phase</b> to extend sets/runs.</li>
+        <li>Tap ONE card, then press <b>Discard Selected</b> to end your turn.</li>
+      </ol>
+      <p><b>Sets</b> = same number (any color). <b>Runs</b> = consecutive numbers (e.g., 4‑5‑6‑7).</p>
+      <p><b>Wilds</b> 🌈 can stand in for any card.</p>
+      <p>The first player to finish a round <i>and</i> lay Phase 8 wins the game! 🏆</p>
+      <button class="close-help" onclick="document.getElementById('help-overlay').classList.remove('show')">Got it!</button>
+    </div>
+  </div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   LEVEL 8  —  single-file kids edition
+   ══════════════════════════════════════════════════════════════ */
+
+// ── Card constants ─────────────────────────────────────────────
+const COLORS   = ['red', 'blue', 'green', 'yellow'];
+const NUMBERS  = Array.from({length: 12}, (_, i) => i + 1);
+const HAND_SIZE = 10;
+
+// ── Phase definitions ─────────────────────────────────────────
+const PHASES = [
+  { name: '2 sets of 3',               parts: [{t:'set', n:3}, {t:'set', n:3}] },
+  { name: '1 set of 3 + 1 run of 4',   parts: [{t:'set', n:3}, {t:'run', n:4}] },
+  { name: '1 set of 4 + 1 run of 4',   parts: [{t:'set', n:4}, {t:'run', n:4}] },
+  { name: '1 run of 7',                parts: [{t:'run', n:7}] },
+  { name: '1 run of 8',                parts: [{t:'run', n:8}] },
+  { name: '1 run of 9',                parts: [{t:'run', n:9}] },
+  { name: '2 sets of 4',               parts: [{t:'set', n:4}, {t:'set', n:4}] },
+  { name: '1 set of 5 + 1 set of 3',   parts: [{t:'set', n:5}, {t:'set', n:3}] },
+];
+const phaseSize = (p) => p.parts.reduce((s, x) => s + x.n, 0);
+
+// ── Game state ────────────────────────────────────────────────
+let deck, discard, playerHand, cpuHand;
+let playerLevel = 1, cpuLevel = 1;       // 1..8
+let playerMelds = [], cpuMelds = [];     // arrays of card-arrays
+let playerLaid  = false, cpuLaid = false;
+let turn        = 'player';              // 'player' | 'cpu'
+let phaseStep   = 'draw';                // 'draw' | 'play'
+let roundOver   = false, gameOver = false;
+let selected    = new Set();             // card ids selected in hand
+
+// ── Deck construction ─────────────────────────────────────────
+function buildDeck() {
+  let id = 0;
+  const d = [];
+  for (const color of COLORS) {
+    for (const num of NUMBERS) {
+      d.push({ id: id++, number: num, color });
+      d.push({ id: id++, number: num, color });
+    }
+  }
+  for (let i = 0; i < 8; i++) d.push({ id: id++, number: 'W', color: 'wild' });
+  return shuffle(d);
+}
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function drawFromDeck() {
+  if (deck.length === 0) {
+    // recycle discard pile (keep top)
+    if (discard.length <= 1) return null;
+    const top = discard.pop();
+    deck = shuffle(discard);
+    discard = [top];
+    log('♻️ Deck reshuffled from discard pile.');
+  }
+  return deck.pop();
+}
+
+// ── Validation helpers ────────────────────────────────────────
+function isSet(cards, n) {
+  if (cards.length !== n) return false;
+  const nonWild = cards.filter(c => c.number !== 'W');
+  if (nonWild.length === 0) return true;
+  const num = nonWild[0].number;
+  return nonWild.every(c => c.number === num);
+}
+function isRun(cards, n) {
+  if (cards.length !== n) return false;
+  const nums = cards.filter(c => c.number !== 'W').map(c => c.number);
+  const wilds = cards.length - nums.length;
+  // must be unique (a run has distinct numbers; wilds fill gaps)
+  const unique = new Set(nums);
+  if (unique.size !== nums.length) return false;
+  if (nums.length === 0) return true;                    // all wild
+  nums.sort((a, b) => a - b);
+  const lo = nums[0], hi = nums[nums.length - 1];
+  if (hi - lo + 1 > n) return false;                     // spans too wide
+  // find any start s.t. [start..start+n-1] covers all nums, within 1..12
+  for (let start = Math.max(1, hi - n + 1); start <= Math.min(lo, 12 - n + 1); start++) {
+    if (nums[0] >= start && nums[nums.length - 1] <= start + n - 1) return true;
+  }
+  return false;
+}
+// combinations of indices 0..n-1 taken k at a time
+function* combos(n, k, start = 0, chosen = []) {
+  if (chosen.length === k) { yield chosen.slice(); return; }
+  for (let i = start; i <= n - (k - chosen.length); i++) {
+    chosen.push(i);
+    yield* combos(n, k, i + 1, chosen);
+    chosen.pop();
+  }
+}
+// Try to split `cards` into `parts`. Returns [[cards...], [cards...]] or null.
+function splitIntoParts(cards, parts) {
+  if (parts.length === 0) return cards.length === 0 ? [] : null;
+  const [first, ...rest] = parts;
+  if (cards.length < first.n) return null;
+  for (const idxs of combos(cards.length, first.n)) {
+    const take = idxs.map(i => cards[i]);
+    const remain = cards.filter((_, i) => !idxs.includes(i));
+    const ok = (first.t === 'set') ? isSet(take, first.n) : isRun(take, first.n);
+    if (!ok) continue;
+    const restSplit = splitIntoParts(remain, rest);
+    if (restSplit !== null) return [take, ...restSplit];
+  }
+  return null;
+}
+function findPhaseInHand(hand, phaseIdx) {
+  const phase = PHASES[phaseIdx];
+  const sz = phaseSize(phase);
+  if (hand.length < sz) return null;
+  // Pick exactly sz cards out of hand
+  for (const idxs of combos(hand.length, sz)) {
+    const pick = idxs.map(i => hand[i]);
+    const split = splitIntoParts(pick, phase.parts);
+    if (split) return { pick, split };
+  }
+  return null;
+}
+
+// ── Hitting (play on meld) ────────────────────────────────────
+// Try to extend `meld` (a set or a run) with `cards`. Returns true + mutates if possible.
+// We determine kind (set vs run) from the meld contents.
+function tryExtendMeld(meld, cards) {
+  // Try as set: all existing non-wild cards share a number
+  const nonWild = meld.filter(c => c.number !== 'W');
+  const asSet = nonWild.every(c => c.number === nonWild[0]?.number);
+  // Try as run: consecutive numbers
+  const asRun = isRunExtensible(meld);
+
+  // Set extension: each added card must be wild or match the set's number (or all wild → can pick a number)
+  if (asSet) {
+    const num = nonWild[0]?.number;
+    if (cards.every(c => c.number === 'W' || c.number === num || num === undefined)) {
+      meld.push(...cards);
+      return true;
+    }
+  }
+  // Run extension: cards extend either end (in any order, using wilds as gap fillers)
+  if (asRun) {
+    const all = [...meld, ...cards];
+    // run length = all.length ; try isRun
+    if (isRun(all, all.length)) {
+      meld.length = 0;
+      meld.push(...all);
+      return true;
+    }
+  }
+  return false;
+}
+function isRunExtensible(meld) {
+  // meld already forms a run of meld.length
+  return isRun(meld, meld.length);
+}
+
+// ── Dealing / round reset ─────────────────────────────────────
+function newRound() {
+  deck = buildDeck();
+  discard = [];
+  playerHand = [];
+  cpuHand = [];
+  for (let i = 0; i < HAND_SIZE; i++) {
+    playerHand.push(drawFromDeck());
+    cpuHand.push(drawFromDeck());
+  }
+  discard.push(drawFromDeck());
+  playerMelds = []; cpuMelds = [];
+  playerLaid = false; cpuLaid = false;
+  selected.clear();
+  phaseStep = 'draw';
+  roundOver = false;
+  turn = Math.random() < 0.5 ? 'player' : 'cpu';
+  log(`🎴 New round. ${turn === 'player' ? 'You' : 'Computer'} goes first.`);
+  sortPlayerHand();
+  render();
+  setStatus(turn === 'player' ? 'Your turn — tap a pile to draw!' : 'Computer is thinking…');
+  if (turn === 'cpu') setTimeout(cpuTurn, 900);
+}
+
+function sortPlayerHand() {
+  playerHand.sort((a, b) => {
+    if (a.number === 'W' && b.number !== 'W') return 1;
+    if (b.number === 'W' && a.number !== 'W') return -1;
+    if (a.number !== b.number) return a.number - b.number;
+    return COLORS.indexOf(a.color) - COLORS.indexOf(b.color);
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────
+function cardEl(card, opts = {}) {
+  const el = document.createElement('div');
+  el.className = `card ${card.color}`;
+  if (card.color === 'wild') el.classList.add('wild');
+  if (selected.has(card.id) && opts.selectable) el.classList.add('selected');
+  const num = document.createElement('div');
+  num.className = 'num';
+  num.textContent = card.number === 'W' ? '★' : card.number;
+  const sub = document.createElement('div');
+  sub.className = 'sub';
+  sub.textContent = card.color === 'wild' ? 'WILD' : '';
+  el.appendChild(num);
+  if (sub.textContent) el.appendChild(sub);
+  if (opts.onClick) el.addEventListener('click', opts.onClick);
+  return el;
+}
+
+function render() {
+  // Levels
+  document.querySelector('#lvl-you .lvl').textContent = `Lvl ${playerLevel}`;
+  document.querySelector('#lvl-cpu .lvl').textContent = `Lvl ${cpuLevel}`;
+  document.getElementById('lvl-you').classList.toggle('active', turn === 'player');
+  document.getElementById('lvl-cpu').classList.toggle('active', turn === 'cpu');
+
+  // Phase banner (shows YOUR current phase)
+  const p = PHASES[playerLevel - 1];
+  document.getElementById('phase-num').textContent = `Your Phase ${playerLevel}` + (playerLaid ? ' ✓ laid!' : '');
+  document.getElementById('phase-desc').textContent = p.name;
+
+  // CPU hand
+  document.getElementById('cpu-count').textContent = cpuHand.length;
+  const cpuHandDiv = document.getElementById('cpu-hand');
+  cpuHandDiv.innerHTML = '';
+  for (let i = 0; i < cpuHand.length; i++) {
+    const b = document.createElement('div');
+    b.className = 'card-back';
+    cpuHandDiv.appendChild(b);
+  }
+
+  // CPU melds
+  const cpuMeldsDiv = document.getElementById('cpu-melds');
+  cpuMeldsDiv.innerHTML = '';
+  cpuMelds.forEach(m => {
+    const g = document.createElement('div');
+    g.className = 'meld-group cpu';
+    m.forEach(c => g.appendChild(cardEl(c)));
+    cpuMeldsDiv.appendChild(g);
+  });
+
+  // Player melds
+  const pMeldsDiv = document.getElementById('player-melds');
+  pMeldsDiv.innerHTML = '';
+  playerMelds.forEach(m => {
+    const g = document.createElement('div');
+    g.className = 'meld-group player';
+    m.forEach(c => g.appendChild(cardEl(c)));
+    pMeldsDiv.appendChild(g);
+  });
+
+  // Deck
+  document.getElementById('deck-count').textContent = deck.length;
+  const deckEl = document.getElementById('deck');
+  const canDraw = turn === 'player' && phaseStep === 'draw' && !roundOver && deck.length > 0;
+  deckEl.classList.toggle('disabled', !canDraw);
+  deckEl.onclick = canDraw ? () => { playerDraw('deck'); } : null;
+
+  // Discard
+  const discEl = document.getElementById('discard');
+  discEl.innerHTML = '';
+  if (discard.length > 0) {
+    discEl.classList.add('has-card');
+    discEl.appendChild(cardEl(discard[discard.length - 1]));
+  } else {
+    discEl.classList.remove('has-card');
+  }
+  const canTakeDiscard = turn === 'player' && phaseStep === 'draw' && !roundOver && discard.length > 0;
+  discEl.classList.toggle('disabled', !canTakeDiscard);
+  discEl.onclick = canTakeDiscard ? () => { playerDraw('discard'); } : null;
+
+  // Player hand
+  const handDiv = document.getElementById('player-hand');
+  handDiv.innerHTML = '';
+  playerHand.forEach(c => {
+    handDiv.appendChild(cardEl(c, {
+      selectable: true,
+      onClick: () => toggleSelect(c.id),
+    }));
+  });
+
+  // Buttons
+  const myTurnPlay = turn === 'player' && phaseStep === 'play' && !roundOver;
+  document.getElementById('lay-btn').disabled     = !(myTurnPlay && !playerLaid && selected.size > 0);
+  document.getElementById('hit-btn').disabled     = !(myTurnPlay && playerLaid && selected.size > 0);
+  document.getElementById('discard-btn').disabled = !(myTurnPlay && selected.size === 1);
+}
+
+// ── Player actions ────────────────────────────────────────────
+function toggleSelect(id) {
+  if (turn !== 'player' || phaseStep !== 'play' || roundOver) return;
+  if (selected.has(id)) selected.delete(id);
+  else selected.add(id);
+  render();
+}
+function playerDraw(source) {
+  let card;
+  if (source === 'deck') {
+    card = drawFromDeck();
+    if (!card) { setStatus('Deck is empty!'); return; }
+    log(`🧒 You drew from the deck.`, 'you');
+  } else {
+    card = discard.pop();
+    log(`🧒 You took the ${describe(card)} from the discard.`, 'you');
+  }
+  playerHand.push(card);
+  sortPlayerHand();
+  phaseStep = 'play';
+  setStatus('Now: lay a phase, play on a phase, or discard one card.');
+  render();
+}
+function layPhase() {
+  const picks = playerHand.filter(c => selected.has(c.id));
+  const phase = PHASES[playerLevel - 1];
+  if (picks.length !== phaseSize(phase)) {
+    setStatus(`Select exactly ${phaseSize(phase)} cards for "${phase.name}".`);
+    return;
+  }
+  const split = splitIntoParts(picks, phase.parts);
+  if (!split) {
+    setStatus(`Those cards don't form "${phase.name}" — try again.`);
+    return;
+  }
+  // Commit
+  split.forEach(group => playerMelds.push(group));
+  playerHand = playerHand.filter(c => !selected.has(c.id));
+  selected.clear();
+  playerLaid = true;
+  log(`🧒 You laid Phase ${playerLevel}: ${phase.name}!`, 'you');
+  setStatus(`Phase laid! Discard one card to end your turn.`);
+  render();
+}
+function hitOnPhase() {
+  const picks = playerHand.filter(c => selected.has(c.id));
+  if (picks.length === 0) return;
+  // Try to extend any meld (your own OR the CPU's) with picks
+  const allMelds = [...playerMelds, ...cpuMelds];
+  // Try adding ALL picks to a single meld
+  let placed = false;
+  for (const meld of allMelds) {
+    const trial = meld.slice();
+    if (tryExtendMeld(trial, picks)) {
+      meld.length = 0; meld.push(...trial);
+      placed = true; break;
+    }
+  }
+  // If that failed, try one-at-a-time
+  if (!placed) {
+    let stillToPlace = picks.slice();
+    for (const card of picks) {
+      for (const meld of allMelds) {
+        const trial = meld.slice();
+        if (tryExtendMeld(trial, [card])) {
+          meld.length = 0; meld.push(...trial);
+          stillToPlace = stillToPlace.filter(c => c.id !== card.id);
+          break;
+        }
+      }
+    }
+    if (stillToPlace.length < picks.length) {
+      // removed some
+      playerHand = playerHand.filter(c => !selected.has(c.id) || stillToPlace.includes(c));
+      log(`🧒 You played ${picks.length - stillToPlace.length} card(s) on a phase.`, 'you');
+      if (stillToPlace.length > 0) setStatus(`Couldn't place ${stillToPlace.length} of those.`);
+      selected.clear();
+      checkRoundEnd();
+      render();
+      return;
+    }
+    setStatus(`Those cards don't extend any laid phase.`);
+    return;
+  }
+  playerHand = playerHand.filter(c => !selected.has(c.id));
+  selected.clear();
+  log(`🧒 You played ${picks.length} card(s) on a phase.`, 'you');
+  checkRoundEnd();
+  render();
+}
+function discardSelected() {
+  if (selected.size !== 1) return;
+  const id = [...selected][0];
+  const idx = playerHand.findIndex(c => c.id === id);
+  const card = playerHand.splice(idx, 1)[0];
+  discard.push(card);
+  selected.clear();
+  log(`🧒 You discarded ${describe(card)}.`, 'you');
+  if (checkRoundEnd()) return;
+  // pass turn
+  turn = 'cpu';
+  phaseStep = 'draw';
+  setStatus('Computer is thinking…');
+  render();
+  setTimeout(cpuTurn, 900);
+}
+
+// ── Round/game end ────────────────────────────────────────────
+function checkRoundEnd() {
+  if (playerHand.length === 0) { endRound('player'); return true; }
+  if (cpuHand.length === 0)    { endRound('cpu');    return true; }
+  return false;
+}
+function endRound(winner) {
+  roundOver = true;
+  const msg = document.getElementById('status-msg');
+  if (winner === 'player') {
+    if (playerLaid) playerLevel++;
+    if (cpuLaid)    cpuLevel++;
+    log('🏁 You went out! Round over.', 'you');
+    msg.textContent = `🎉 You finished the round!`;
+    msg.className = 'status-msg win';
+  } else {
+    if (playerLaid) playerLevel++;
+    if (cpuLaid)    cpuLevel++;
+    log('🏁 Computer went out. Round over.', 'cpu');
+    msg.textContent = `🤖 Computer finished the round.`;
+    msg.className = 'status-msg lose';
+  }
+  // Check game win: finish phase 8 AND go out
+  if (playerLevel > 8) {
+    msg.textContent = '🏆 You WIN the game! All 8 phases complete!';
+    msg.className = 'status-msg win';
+    gameOver = true;
+  } else if (cpuLevel > 8) {
+    msg.textContent = '🤖 Computer wins the game (beat Phase 8).';
+    msg.className = 'status-msg lose';
+    gameOver = true;
+  }
+  document.getElementById('new-round-btn').style.display = gameOver ? 'none' : 'inline-block';
+  if (gameOver) {
+    const restart = document.createElement('button');
+    restart.className = 'primary-btn';
+    restart.textContent = 'Play Again 🎲';
+    restart.onclick = () => {
+      playerLevel = 1; cpuLevel = 1; gameOver = false;
+      document.querySelector('.game-panel').removeChild(restart);
+      newRound();
+    };
+    document.querySelector('.game-panel').appendChild(restart);
+  }
+  render();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CPU — medium difficulty
+// ══════════════════════════════════════════════════════════════
+function cpuTurn() {
+  if (roundOver) return;
+  // 1. Decide whether to take discard or deck
+  const topDiscard = discard[discard.length - 1];
+  const takeDiscard = topDiscard && cpuWantsCard(topDiscard);
+  let drawn;
+  if (takeDiscard) {
+    drawn = discard.pop();
+    log(`🤖 Computer took the ${describe(drawn)} from the discard.`, 'cpu');
+  } else {
+    drawn = drawFromDeck();
+    if (!drawn) { setStatus('Deck empty!'); return; }
+    log(`🤖 Computer drew from the deck.`, 'cpu');
+  }
+  cpuHand.push(drawn);
+  render();
+
+  setTimeout(() => {
+    // 2. Try to lay phase
+    if (!cpuLaid) {
+      const attempt = findPhaseInHand(cpuHand, cpuLevel - 1);
+      if (attempt) {
+        // remove picks from hand
+        const pickIds = new Set(attempt.pick.map(c => c.id));
+        attempt.split.forEach(g => cpuMelds.push(g));
+        cpuHand = cpuHand.filter(c => !pickIds.has(c.id));
+        cpuLaid = true;
+        log(`🤖 Computer laid Phase ${cpuLevel}: ${PHASES[cpuLevel-1].name}!`, 'cpu');
+        render();
+      }
+    }
+    // 3. If laid, try to hit on any meld (greedy: place as many as possible)
+    if (cpuLaid) {
+      cpuTryHits();
+      render();
+    }
+    // 4. Discard least useful card
+    const discardCard = cpuPickDiscard();
+    cpuHand.splice(cpuHand.indexOf(discardCard), 1);
+    discard.push(discardCard);
+    log(`🤖 Computer discarded ${describe(discardCard)}.`, 'cpu');
+    if (checkRoundEnd()) return;
+    turn = 'player';
+    phaseStep = 'draw';
+    setStatus('Your turn — tap a pile to draw.');
+    render();
+  }, 700);
+}
+
+function cpuTryHits() {
+  let progress = true;
+  while (progress) {
+    progress = false;
+    for (const card of cpuHand.slice()) {
+      for (const meld of [...cpuMelds, ...playerMelds]) {
+        const trial = meld.slice();
+        if (tryExtendMeld(trial, [card])) {
+          meld.length = 0; meld.push(...trial);
+          cpuHand.splice(cpuHand.indexOf(card), 1);
+          log(`🤖 Computer played ${describe(card)} on a phase.`, 'cpu');
+          progress = true;
+          break;
+        }
+      }
+      if (progress) break;
+    }
+    if (cpuHand.length === 0) return; // went out!
+  }
+}
+
+// Does adding this card help toward the current phase or extend laid melds?
+function cpuWantsCard(card) {
+  // If already laid, want the card only if it extends our melds
+  if (cpuLaid) {
+    for (const meld of cpuMelds) {
+      const trial = meld.slice();
+      if (tryExtendMeld(trial, [card])) return true;
+    }
+    return false;
+  }
+  // Otherwise, evaluate "progress toward phase" with and without the card
+  const before = scorePhaseProgress(cpuHand, cpuLevel - 1);
+  const after  = scorePhaseProgress([...cpuHand, card], cpuLevel - 1);
+  return after > before + 0.5;   // small threshold to avoid noise
+}
+
+// Heuristic: higher = more complete. Wild counts strongly; set/run partial matches score.
+function scorePhaseProgress(hand, phaseIdx) {
+  const phase = PHASES[phaseIdx];
+  const wilds = hand.filter(c => c.number === 'W').length;
+  let best = 0;
+  // Try to assign, for each part, the best matching subset already in hand
+  // Simple scoring: sum over parts of (largest same-number count for sets, largest run-stretch for runs)
+  for (const part of phase.parts) {
+    if (part.t === 'set') {
+      // best count of any number
+      const counts = {};
+      hand.forEach(c => { if (c.number !== 'W') counts[c.number] = (counts[c.number] || 0) + 1; });
+      const top = Math.max(0, ...Object.values(counts));
+      best += Math.min(part.n, top + wilds * 0.5);
+    } else {
+      // best run stretch
+      const nums = [...new Set(hand.filter(c => c.number !== 'W').map(c => c.number))].sort((a,b)=>a-b);
+      let maxStretch = 0, cur = 0, prev = -99;
+      for (const n of nums) {
+        if (n === prev + 1) cur++;
+        else cur = 1;
+        prev = n;
+        if (cur > maxStretch) maxStretch = cur;
+      }
+      best += Math.min(part.n, maxStretch + wilds * 0.5);
+    }
+  }
+  return best;
+}
+
+function cpuPickDiscard() {
+  // discard the card that least helps scorePhaseProgress
+  let worst = cpuHand[0], worstScore = Infinity;
+  for (const card of cpuHand) {
+    const without = cpuHand.filter(c => c.id !== card.id);
+    const s = scorePhaseProgress(without, cpuLevel - 1);
+    // We want to keep high scores; pick card whose removal hurts us least, i.e. highest s
+    if (s < worstScore) {
+      // no — we invert: lower s after removal means this card helped; pick card where s is HIGHEST (helped least)
+    }
+  }
+  // Correct logic: for each card, compute score-if-removed; we keep high scores, so discard the card
+  // whose removal leaves the HIGHEST remaining score (meaning it was least useful).
+  let bestCard = cpuHand[0], bestRemaining = -Infinity;
+  for (const card of cpuHand) {
+    // Never discard wilds unless nothing else
+    const without = cpuHand.filter(c => c.id !== card.id);
+    const s = scorePhaseProgress(without, cpuLevel - 1);
+    const penalty = card.number === 'W' ? -100 : 0;
+    const total = s + penalty;
+    if (total > bestRemaining) { bestRemaining = total; bestCard = card; }
+  }
+  return bestCard;
+}
+
+// ── UI glue ──────────────────────────────────────────────────
+function setStatus(txt) { document.getElementById('status-msg').textContent = txt; }
+function describe(card) {
+  if (!card) return '??';
+  if (card.number === 'W') return '🌈 Wild';
+  return `${card.color} ${card.number}`;
+}
+function log(msg, cls) {
+  const div = document.getElementById('log');
+  const p = document.createElement('div');
+  p.className = 'entry' + (cls ? ' ' + cls : '');
+  p.textContent = msg;
+  div.appendChild(p);
+  div.scrollTop = div.scrollHeight;
+}
+
+// Buttons
+document.getElementById('lay-btn').addEventListener('click', layPhase);
+document.getElementById('hit-btn').addEventListener('click', hitOnPhase);
+document.getElementById('discard-btn').addEventListener('click', discardSelected);
+document.getElementById('new-round-btn').addEventListener('click', () => {
+  document.getElementById('new-round-btn').style.display = 'none';
+  newRound();
+});
+document.getElementById('help-btn').addEventListener('click', () =>
+  document.getElementById('help-overlay').classList.add('show')
+);
+
+// First game
+newRound();
+</script>
+</body>
+</html>
