@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game of Life 🏠</title>
+  <link rel="stylesheet" href="../css/shared.css" />
+  <style>
+    /* ── Modal overlay ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.65);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; padding: 16px;
+    }
+    .modal-overlay.hidden { display: none; }
+
+    .modal-box {
+      background: #fff; border-radius: 24px;
+      padding: 28px 24px; width: 100%; max-width: 400px;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 14px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    .modal-box h2 { font-size: 1.5rem; color: #333; }
+    .modal-box p  { color: #666; font-size: 0.95rem; line-height: 1.5; white-space: pre-line; }
+
+    /* ── Setup screen ── */
+    .count-row { display: flex; gap: 10px; }
+    .count-btn {
+      width: 52px; height: 52px;
+      border: 3px solid #764ba2; border-radius: 14px;
+      background: #f0ecff; color: #764ba2;
+      font-size: 1.3rem; font-weight: 900;
+      cursor: pointer; transition: background 0.15s, color 0.15s;
+    }
+    .count-btn.active { background: #764ba2; color: #fff; }
+
+    #player-inputs { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+
+    .player-input-row {
+      display: flex; gap: 8px; align-items: center;
+    }
+    .player-dot {
+      width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+    }
+    .player-input-row input {
+      flex: 1; border: 2px solid #ddd; border-radius: 10px;
+      padding: 8px 10px; font-size: 0.95rem; outline: none;
+    }
+    .player-input-row input:focus { border-color: #764ba2; }
+
+    .path-toggle { display: flex; gap: 6px; }
+    .path-btn {
+      padding: 6px 12px; border: 2px solid #764ba2; border-radius: 20px;
+      background: #f0ecff; color: #764ba2;
+      font-size: 0.8rem; font-weight: 700; cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .path-btn.active { background: #764ba2; color: #fff; }
+
+    /* ── HUD strip ── */
+    #current-hud {
+      width: 100%; max-width: 480px;
+      background: #fff; border-radius: 16px;
+      padding: 12px 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .hud-dot { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; }
+    #hud-name  { font-weight: 800; font-size: 1rem; color: #333; }
+    #hud-money { font-size: 0.9rem; color: #555; }
+    #hud-info  { font-size: 0.75rem; color: #888; }
+    .hud-text  { flex: 1; }
+
+    /* ── Board canvas ── */
+    #board-canvas {
+      width: 100%; border-radius: 16px; display: block;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+
+    /* ── Spinner row ── */
+    #spinner-row {
+      width: 100%; max-width: 480px;
+      background: #fff; border-radius: 16px;
+      padding: 16px; display: flex; align-items: center;
+      justify-content: space-around;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      gap: 16px;
+    }
+
+    #spin-display {
+      width: 100px; height: 100px; border-radius: 50%;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px rgba(118,75,162,0.4);
+      flex-shrink: 0;
+    }
+    #spin-number {
+      font-size: 2.8rem; font-weight: 900; color: #fff;
+      min-width: 1ch; text-align: center;
+      transition: transform 0.05s;
+    }
+    #spin-number.flash { animation: numFlash 0.07s ease; }
+    @keyframes numFlash {
+      0%   { transform: scale(0.6); opacity: 0.4; }
+      100% { transform: scale(1);   opacity: 1; }
+    }
+
+    #spin-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    #spin-sub { font-size: 0.8rem; color: #888; font-weight: 600; }
+
+    /* ── Players scoreboard ── */
+    #players-strip {
+      width: 100%; max-width: 480px;
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+    }
+    .player-card {
+      background: #fff; border-radius: 14px; padding: 10px 14px;
+      min-width: 100px; flex: 1; max-width: 160px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      border-top: 4px solid transparent;
+    }
+    .player-card.active-turn { box-shadow: 0 4px 16px rgba(118,75,162,0.35); }
+    .player-card .pc-name  { font-size: 0.8rem; font-weight: 700; color: #555; }
+    .player-card .pc-money { font-size: 1rem; font-weight: 900; color: #333; }
+    .player-card .pc-tiles { font-size: 0.75rem; color: #888; }
+
+    /* ── Event modal ── */
+    #event-emoji  { font-size: 3.5rem; }
+    .money-change { font-size: 1.4rem; font-weight: 900; }
+    .money-change.pos { color: #27ae60; }
+    .money-change.neg { color: #e74c3c; }
+
+    /* ── Game over ── */
+    #final-scores { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+    .final-row {
+      display: flex; align-items: center; gap: 10px;
+      background: #f7f3ff; border-radius: 12px; padding: 10px 14px;
+    }
+    .final-row.winner { background: #fff3cd; }
+    .final-dot { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; }
+    .final-name  { flex: 1; font-weight: 700; font-size: 0.95rem; }
+    .final-money { font-weight: 900; font-size: 1.05rem; }
+    .final-crown { font-size: 1.2rem; }
+  </style>
+</head>
+<body>
+
+  <button class="back-btn" onclick="location.href='../index.html'">← Games</button>
+  <h1 class="page-title">🏠 Game of Life</h1>
+
+  <!-- ── SETUP OVERLAY ─────────────────────────────────── -->
+  <div id="setup-overlay" class="modal-overlay">
+    <div class="modal-box">
+      <h2>🎲 Game Setup</h2>
+
+      <div style="font-weight:700;color:#555">How many players?</div>
+      <div class="count-row" id="count-row">
+        <button class="count-btn active" data-n="2">2</button>
+        <button class="count-btn"        data-n="3">3</button>
+        <button class="count-btn"        data-n="4">4</button>
+      </div>
+
+      <div id="player-inputs"></div>
+
+      <div style="font-size:0.8rem;color:#888;text-align:left;width:100%">
+        🎓 <b>College:</b> $60k start · $80k/payday<br/>
+        💼 <b>Career:</b> $100k start · $50k/payday
+      </div>
+
+      <button id="start-btn" class="primary-btn">Start Game! 🚗</button>
+    </div>
+  </div>
+
+  <!-- ── EVENT MODAL ─────────────────────────────────── -->
+  <div id="event-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div id="event-emoji"></div>
+      <h2 id="event-title"></h2>
+      <p  id="event-desc"></p>
+      <div id="event-money" class="money-change"></div>
+      <button id="event-ok" class="primary-btn">OK! 👍</button>
+    </div>
+  </div>
+
+  <!-- ── GAME OVER MODAL ──────────────────────────────── -->
+  <div id="gameover-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2>🏁 Game Over!</h2>
+      <p style="color:#888;font-size:0.85rem">Life Tiles: $25,000 each</p>
+      <div id="final-scores"></div>
+      <button id="play-again-btn" class="primary-btn">Play Again! 🎲</button>
+    </div>
+  </div>
+
+  <!-- ── MAIN GAME (hidden until setup) ───────────────── -->
+  <div id="game-area" class="hidden" style="width:100%;max-width:480px;display:flex;flex-direction:column;align-items:center;gap:12px">
+
+    <div id="current-hud">
+      <div class="hud-dot" id="hud-dot"></div>
+      <div class="hud-text">
+        <div id="hud-name"></div>
+        <div id="hud-money"></div>
+        <div id="hud-info"></div>
+      </div>
+    </div>
+
+    <canvas id="board-canvas" width="320" height="350"></canvas>
+
+    <div id="spinner-row">
+      <div id="spin-display"><div id="spin-number">?</div></div>
+      <div id="spin-col">
+        <div id="spin-sub">Tap to spin!</div>
+        <button id="spin-btn" class="primary-btn">🎰 SPIN!</button>
+      </div>
+    </div>
+
+    <div id="players-strip"></div>
+
+  </div>
+
+<!-- ─────────────────────── SCRIPT ─────────────────────── -->
+<script>
+// ── CONSTANTS ──────────────────────────────────────────────────────────────
+
+const PLAYER_COLORS  = ['#e74c3c','#3498db','#2ecc71','#e67e22'];
+const LIFE_TILE_VAL  = 25000;
+const SPIN_MAX       = 6;
+const RETIRE_IDX     = 37;
+
+const CAREERS = {
+  college: { label:'College 🎓', startMoney:60000,  salary:80000 },
+  career:  { label:'Career 💼',  startMoney:100000, salary:50000 },
+};
+
+// ── BOARD PATH: 38 spaces, snake layout on 320×350 canvas ──────────────────
+const PATH = (() => {
+  const ys  = [30, 100, 170, 240, 310];
+  const LTR = [20,60,100,140,180,220,260,300];
+  const RTL = [300,260,220,180,140,100,60,20];
+  const pts = [];
+  LTR.forEach(x => pts.push({x, y:ys[0]}));           // 0-7
+  RTL.forEach(x => pts.push({x, y:ys[1]}));           // 8-15
+  LTR.forEach(x => pts.push({x, y:ys[2]}));           // 16-23
+  RTL.forEach(x => pts.push({x, y:ys[3]}));           // 24-31
+  [20,60,100,140,180,220].forEach(x => pts.push({x, y:ys[4]})); // 32-37
+  return pts;
+})();
+
+const SPACES = [
+  { type:'start',  emoji:'🏁', label:'START',             money:0,      desc:'' },
+  { type:'good',   emoji:'🍀', label:'Lucky Day!',         money:20000,  desc:'Found $20,000 in an old jacket pocket!' },
+  { type:'bad',    emoji:'🔧', label:'Car Trouble',        money:-10000, desc:'Your car broke down.\nPay $10,000 repair bill.' },
+  { type:'life',   emoji:'👶', label:'New Baby!',          money:-5000,  desc:'A baby arrives! Pay $5,000 hospital bill.\nYou gain a Life Tile!' },
+  { type:'good',   emoji:'🎁', label:'Surprise Bonus!',    money:30000,  desc:'Your boss gives you a surprise bonus!\nCollect $30,000.' },
+  { type:'payday', emoji:'💰', label:'PAYDAY!',             money:0,      desc:'Collect your salary!' },
+  { type:'bad',    emoji:'📋', label:'Tax Time!',          money:-20000, desc:'Annual tax bill arrives.\nPay $20,000.' },
+  { type:'good',   emoji:'⭐', label:'Promotion!',         money:25000,  desc:'You got promoted at work!\nCollect $25,000.' },
+  { type:'life',   emoji:'💍', label:'Wedding Day!',       money:0,      desc:"Congratulations! You're getting married!\nCollect $20,000 from each other player!" },
+  { type:'bad',    emoji:'🏥', label:'Hospital Bill',      money:-15000, desc:'Unexpected medical expenses.\nPay $15,000.' },
+  { type:'good',   emoji:'🏆', label:'Win an Award!',      money:40000,  desc:'You won a prestigious award!\nCollect $40,000.' },
+  { type:'payday', emoji:'💰', label:'PAYDAY!',             money:0,      desc:'Collect your salary!' },
+  { type:'bad',    emoji:'🌧', label:'Flooded Basement',   money:-25000, desc:'Heavy rain floods your basement.\nPay $25,000 repair.' },
+  { type:'good',   emoji:'🎨', label:'Art Sale!',          money:35000,  desc:'Your paintings sold for big money!\nCollect $35,000.' },
+  { type:'life',   emoji:'👶', label:'New Baby!',          money:-5000,  desc:'Twins! Pay $5,000 hospital bill.\nYou gain a Life Tile!' },
+  { type:'bad',    emoji:'🚗', label:'Speeding Ticket',    money:-15000, desc:'Caught speeding!\nPay $15,000 fine.' },
+  { type:'payday', emoji:'💰', label:'PAYDAY!',             money:0,      desc:'Collect your salary!' },
+  { type:'good',   emoji:'💡', label:'Brilliant Invention!', money:50000, desc:'Your invention sold for a fortune!\nCollect $50,000.' },
+  { type:'bad',    emoji:'💻', label:'Computer Crash',     money:-20000, desc:'Lost all your data!\nRecovery costs $20,000.' },
+  { type:'good',   emoji:'🎉', label:'Town Celebration!',  money:30000,  desc:'The whole town throws you a party!\nCollect $30,000.' },
+  { type:'payday', emoji:'💰', label:'PAYDAY!',             money:0,      desc:'Collect your salary!' },
+  { type:'bad',    emoji:'⚡', label:'Power Outage',       money:-20000, desc:'Major electrical repair needed.\nPay $20,000.' },
+  { type:'good',   emoji:'🎰', label:'Lottery Winner!',    money:60000,  desc:'You hit the jackpot!\nCollect $60,000.' },
+  { type:'life',   emoji:'👶', label:'New Baby!',          money:-5000,  desc:'A new bundle of joy! Pay $5,000.\nYou gain a Life Tile!' },
+  { type:'payday', emoji:'💰', label:'PAYDAY!',             money:0,      desc:'Collect your salary!' },
+  { type:'bad',    emoji:'🐾', label:'Vet Bill',           money:-15000, desc:'Your pet needs surgery!\nPay $15,000 vet bill.' },
+  { type:'good',   emoji:'🌟', label:'TV Famous!',         money:45000,  desc:'You starred in a TV show!\nCollect $45,000.' },
+  { type:'bad',    emoji:'🏦', label:'Bad Investment',     money:-30000, desc:'Lost money on bad stocks.\nPay $30,000.' },
+  { type:'payday', emoji:'💰', label:'PAYDAY!',             money:0,      desc:'Collect your salary!' },
+  { type:'good',   emoji:'🎸', label:'Concert Tour!',      money:55000,  desc:'Sold out concert tour!\nCollect $55,000.' },
+  { type:'bad',    emoji:'🌊', label:'Flood Damage',       money:-25000, desc:'River floods your neighbourhood.\nPay $25,000.' },
+  { type:'good',   emoji:'📚', label:'Book Deal!',         money:40000,  desc:'Your book becomes a bestseller!\nCollect $40,000.' },
+  { type:'payday', emoji:'💰', label:'PAYDAY!',             money:0,      desc:'Collect your salary!' },
+  { type:'bad',    emoji:'🔨', label:'Home Repairs',       money:-20000, desc:'House needs major repairs.\nPay $20,000.' },
+  { type:'good',   emoji:'🍀', label:'Lucky Day!',         money:35000,  desc:'Lucky streak!\nCollect $35,000.' },
+  { type:'bad',    emoji:'💸', label:'Unexpected Bill',    money:-15000, desc:'Surprise bill in the mail.\nPay $15,000.' },
+  { type:'good',   emoji:'🎵', label:'Music Star!',        money:50000,  desc:'Your song goes viral!\nCollect $50,000.' },
+  { type:'retire', emoji:'🏠', label:'RETIREMENT!',        money:0,      desc:"Welcome to retirement!\nTime to count your savings!" },
+];
+
+// Space type → fill colour for the board
+const SPACE_COLORS = {
+  start:  '#764ba2',
+  retire: '#f39c12',
+  payday: '#27ae60',
+  good:   '#a8e6cf',
+  bad:    '#ffaaa5',
+  life:   '#a0c4ff',
+};
+
+// ── GAME STATE ─────────────────────────────────────────────────────────────
+
+let players = [];
+let currentIdx = 0;
+let spinning   = false;
+let eventQueue = [];    // queued {emoji,title,desc,moneyStr,callback}
+
+// ── SETUP ──────────────────────────────────────────────────────────────────
+
+let selectedCount = 2;
+const playerPaths = ['career','career','career','career'];
+
+function renderSetup() {
+  const container = document.getElementById('player-inputs');
+  container.innerHTML = '';
+  for (let i = 0; i < selectedCount; i++) {
+    const row = document.createElement('div');
+    row.className = 'player-input-row';
+    row.innerHTML = `
+      <div class="player-dot" style="background:${PLAYER_COLORS[i]}"></div>
+      <input type="text" value="Player ${i+1}" id="pname-${i}" maxlength="16" />
+      <div class="path-toggle">
+        <button class="path-btn active" data-p="${i}" data-path="career">💼</button>
+        <button class="path-btn"        data-p="${i}" data-path="college">🎓</button>
+      </div>`;
+    container.appendChild(row);
+  }
+  container.querySelectorAll('.path-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = +btn.dataset.p;
+      playerPaths[p] = btn.dataset.path;
+      container.querySelectorAll(`.path-btn[data-p="${p}"]`)
+               .forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+}
+
+document.getElementById('count-row').addEventListener('click', e => {
+  const btn = e.target.closest('.count-btn');
+  if (!btn) return;
+  selectedCount = +btn.dataset.n;
+  document.querySelectorAll('.count-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderSetup();
+});
+
+document.getElementById('start-btn').addEventListener('click', () => {
+  players = [];
+  for (let i = 0; i < selectedCount; i++) {
+    const name   = document.getElementById(`pname-${i}`).value.trim() || `Player ${i+1}`;
+    const path   = playerPaths[i] || 'career';
+    const career = CAREERS[path];
+    players.push({
+      name, path, color: PLAYER_COLORS[i],
+      money:    career.startMoney,
+      salary:   career.salary,
+      space:    0,
+      lifeTiles: 0,
+      married:  false,
+      retired:  false,
+    });
+  }
+  currentIdx = 0;
+  document.getElementById('setup-overlay').classList.add('hidden');
+  document.getElementById('game-area').classList.remove('hidden');
+  drawBoard();
+  renderPlayersStrip();
+  updateHUD();
+});
+
+// ── BOARD DRAWING ──────────────────────────────────────────────────────────
+
+const boardCanvas = document.getElementById('board-canvas');
+const bctx        = boardCanvas.getContext('2d');
+const R           = 14; // space circle radius
+
+function drawBoard() {
+  const W = boardCanvas.width, H = boardCanvas.height;
+  bctx.clearRect(0, 0, W, H);
+
+  // Background
+  bctx.fillStyle = '#1e1b4b';
+  bctx.roundRect(0, 0, W, H, 16);
+  bctx.fill();
+
+  // Path lines
+  bctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  bctx.lineWidth   = 4;
+  bctx.lineJoin    = 'round';
+  bctx.beginPath();
+  PATH.forEach((pt, i) => i === 0 ? bctx.moveTo(pt.x, pt.y) : bctx.lineTo(pt.x, pt.y));
+  bctx.stroke();
+
+  // Spaces
+  PATH.forEach((pt, i) => {
+    const sp = SPACES[i];
+    // Fill
+    bctx.beginPath();
+    bctx.arc(pt.x, pt.y, R, 0, Math.PI*2);
+    bctx.fillStyle = SPACE_COLORS[sp.type] || '#ccc';
+    bctx.fill();
+    bctx.strokeStyle = '#fff';
+    bctx.lineWidth   = 1.5;
+    bctx.stroke();
+
+    // Emoji icon
+    bctx.font = '11px serif';
+    bctx.textAlign    = 'center';
+    bctx.textBaseline = 'middle';
+    bctx.fillText(sp.emoji, pt.x, pt.y);
+  });
+
+  // Player tokens
+  // Group players by space
+  const bySpace = {};
+  players.forEach((p, idx) => {
+    if (!bySpace[p.space]) bySpace[p.space] = [];
+    bySpace[p.space].push(idx);
+  });
+
+  const offsets = [
+    [[0,0]],
+    [[-7,0],[7,0]],
+    [[-7,5],[7,5],[0,-7]],
+    [[-7,-5],[7,-5],[-7,5],[7,5]],
+  ];
+
+  Object.entries(bySpace).forEach(([spaceIdx, indices]) => {
+    const pt  = PATH[spaceIdx];
+    const ofs = offsets[Math.min(indices.length,4)-1];
+    indices.forEach((pIdx, slot) => {
+      const [dx,dy] = ofs[slot];
+      const p = players[pIdx];
+      bctx.beginPath();
+      bctx.arc(pt.x+dx, pt.y+dy, 6, 0, Math.PI*2);
+      bctx.fillStyle = p.color;
+      bctx.fill();
+      bctx.strokeStyle = '#fff';
+      bctx.lineWidth   = 1.5;
+      bctx.stroke();
+      // Highlight current player
+      if (pIdx === currentIdx && !spinning) {
+        bctx.beginPath();
+        bctx.arc(pt.x+dx, pt.y+dy, 8, 0, Math.PI*2);
+        bctx.strokeStyle = '#fff';
+        bctx.lineWidth   = 2;
+        bctx.stroke();
+      }
+    });
+  });
+}
+
+// ── SPINNER ─────────────────────────────────────────────────────────────────
+
+function animateSpin(result, callback) {
+  const numEl = document.getElementById('spin-number');
+  let count = 0;
+  const total = 16;
+
+  function frame() {
+    if (count < total) {
+      numEl.textContent = Math.floor(Math.random() * SPIN_MAX) + 1;
+      numEl.classList.remove('flash');
+      void numEl.offsetWidth; // reflow to restart animation
+      numEl.classList.add('flash');
+      count++;
+      const delay = 60 + count * (count * 2.5); // ease out
+      setTimeout(frame, Math.min(delay, 300));
+    } else {
+      numEl.textContent = result;
+      callback();
+    }
+  }
+  frame();
+}
+
+// ── GAME FLOW ───────────────────────────────────────────────────────────────
+
+document.getElementById('spin-btn').addEventListener('click', () => {
+  if (spinning) return;
+  const p = players[currentIdx];
+  if (p.retired) { advanceTurn(); return; }
+
+  spinning = true;
+  document.getElementById('spin-btn').disabled = true;
+  document.getElementById('spin-sub').textContent = 'Spinning…';
+
+  const roll = Math.floor(Math.random() * SPIN_MAX) + 1;
+
+  animateSpin(roll, () => {
+    document.getElementById('spin-sub').textContent = `Moved ${roll} space${roll>1?'s':''}!`;
+    movePlayer(currentIdx, roll);
+  });
+});
+
+function movePlayer(playerIdx, steps) {
+  const p = players[playerIdx];
+  let stepsLeft = steps;
+
+  function hop() {
+    if (stepsLeft === 0 || p.space >= RETIRE_IDX) {
+      p.space = Math.min(p.space, RETIRE_IDX);
+      drawBoard();
+      landOnSpace(playerIdx);
+      return;
+    }
+    p.space++;
+    stepsLeft--;
+    drawBoard();
+    setTimeout(hop, 220);
+  }
+  hop();
+}
+
+function landOnSpace(playerIdx) {
+  const p  = players[playerIdx];
+  const sp = SPACES[p.space];
+
+  // Reached retirement
+  if (p.space === RETIRE_IDX) {
+    p.retired = true;
+    queueEvent('🏠', 'Retirement!', sp.desc, null, () => {
+      if (players.every(pl => pl.retired)) {
+        endGame();
+      } else {
+        finishTurn();
+      }
+    });
+    processQueue();
+    return;
+  }
+
+  switch (sp.type) {
+
+    case 'payday':
+      p.money += p.salary;
+      queueEvent(sp.emoji, sp.label, `${p.name} collects ${fmt(p.salary)} salary!`, `+${fmt(p.salary)}`, finishTurn);
+      break;
+
+    case 'good':
+      p.money += sp.money;
+      queueEvent(sp.emoji, sp.label, sp.desc, `+${fmt(sp.money)}`, finishTurn);
+      break;
+
+    case 'bad':
+      p.money += sp.money;
+      queueEvent(sp.emoji, sp.label, sp.desc, `${fmt(sp.money)}`, finishTurn);
+      break;
+
+    case 'life':
+      if (sp.emoji === '💍') {
+        // Wedding: collect $20k from each other player
+        let collected = 0;
+        players.forEach((other, idx) => {
+          if (idx !== playerIdx) {
+            const gift = 20000;
+            other.money -= gift;
+            collected += gift;
+          }
+        });
+        if (!p.married) { p.married = true; p.lifeTiles++; }
+        p.money += collected;
+        const weddingDesc = `${sp.desc}\n${p.name} collected ${fmt(collected)} in gifts!`;
+        queueEvent(sp.emoji, sp.label, weddingDesc, `+${fmt(collected)}`, finishTurn);
+      } else {
+        // Baby
+        p.money += sp.money;
+        p.lifeTiles++;
+        queueEvent(sp.emoji, sp.label, sp.desc, `${fmt(sp.money)} · 🎴 Life Tile gained!`, finishTurn);
+      }
+      break;
+
+    default:
+      finishTurn();
+  }
+
+  processQueue();
+}
+
+function finishTurn() {
+  spinning = false;
+  renderPlayersStrip();
+  advanceTurn();
+}
+
+function advanceTurn() {
+  // Find next non-retired player
+  let next = (currentIdx + 1) % players.length;
+  let loops = 0;
+  while (players[next].retired && loops < players.length) {
+    next = (next + 1) % players.length;
+    loops++;
+  }
+  currentIdx = next;
+  updateHUD();
+  drawBoard();
+
+  const spinBtn = document.getElementById('spin-btn');
+  spinBtn.disabled = false;
+  document.getElementById('spin-sub').textContent = 'Tap to spin!';
+  document.getElementById('spin-number').textContent = '?';
+}
+
+// ── EVENT QUEUE ─────────────────────────────────────────────────────────────
+
+function queueEvent(emoji, title, desc, moneyStr, callback) {
+  eventQueue.push({ emoji, title, desc, moneyStr, callback });
+}
+
+function processQueue() {
+  if (!eventQueue.length) return;
+  const { emoji, title, desc, moneyStr, callback } = eventQueue.shift();
+
+  document.getElementById('event-emoji').textContent  = emoji;
+  document.getElementById('event-title').textContent  = title;
+  document.getElementById('event-desc').textContent   = desc;
+
+  const moneyEl = document.getElementById('event-money');
+  if (moneyStr) {
+    moneyEl.textContent  = moneyStr;
+    moneyEl.className    = 'money-change ' + (moneyStr.startsWith('+') ? 'pos' : 'neg');
+  } else {
+    moneyEl.textContent = '';
+    moneyEl.className   = 'money-change';
+  }
+
+  document.getElementById('event-ok').onclick = () => {
+    document.getElementById('event-modal').classList.add('hidden');
+    renderPlayersStrip();
+    updateHUD();
+    callback();
+    if (eventQueue.length) processQueue();
+  };
+
+  document.getElementById('event-modal').classList.remove('hidden');
+}
+
+// ── HUD ─────────────────────────────────────────────────────────────────────
+
+function updateHUD() {
+  const p = players[currentIdx];
+  if (!p) return;
+  document.getElementById('hud-dot').style.background = p.color;
+  document.getElementById('hud-name').textContent  = `${p.name}'s Turn`;
+  document.getElementById('hud-money').textContent = `💵 ${fmt(p.money)}`;
+  document.getElementById('hud-info').textContent  =
+    `Salary: ${fmt(p.salary)}/payday  ·  🎴 Life Tiles: ${p.lifeTiles}`;
+}
+
+function renderPlayersStrip() {
+  const strip = document.getElementById('players-strip');
+  strip.innerHTML = '';
+  players.forEach((p, idx) => {
+    const card = document.createElement('div');
+    card.className = 'player-card' + (idx === currentIdx ? ' active-turn' : '');
+    card.style.borderTopColor = p.color;
+    const tag = p.retired ? ' 🏠' : '';
+    card.innerHTML = `
+      <div class="pc-name">${p.name}${tag}</div>
+      <div class="pc-money">${fmt(p.money)}</div>
+      <div class="pc-tiles">🎴 ${p.lifeTiles} tile${p.lifeTiles!==1?'s':''}</div>`;
+    strip.appendChild(card);
+  });
+}
+
+// ── GAME OVER ───────────────────────────────────────────────────────────────
+
+function endGame() {
+  // Add life tile value
+  const scored = players.map(p => ({
+    ...p, total: p.money + p.lifeTiles * LIFE_TILE_VAL
+  })).sort((a,b) => b.total - a.total);
+
+  const container = document.getElementById('final-scores');
+  container.innerHTML = '';
+  scored.forEach((p, rank) => {
+    const row = document.createElement('div');
+    row.className = 'final-row' + (rank === 0 ? ' winner' : '');
+    row.innerHTML = `
+      <div class="final-dot" style="background:${p.color}"></div>
+      <div class="final-name">${p.name}</div>
+      <div class="final-money">${fmt(p.total)}</div>
+      ${rank===0 ? '<div class="final-crown">👑</div>' : ''}`;
+    container.appendChild(row);
+  });
+
+  document.getElementById('gameover-modal').classList.remove('hidden');
+}
+
+document.getElementById('play-again-btn').addEventListener('click', () => {
+  document.getElementById('gameover-modal').classList.add('hidden');
+  document.getElementById('game-area').classList.add('hidden');
+  document.getElementById('setup-overlay').classList.remove('hidden');
+  // Reset spinner display
+  document.getElementById('spin-number').textContent = '?';
+  renderSetup();
+});
+
+// ── UTILITIES ────────────────────────────────────────────────────────────────
+
+function fmt(n) {
+  const abs  = Math.abs(Math.round(n));
+  const sign = n < 0 ? '-' : '';
+  return `${sign}$${abs.toLocaleString()}`;
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+renderSetup();
+</script>
+</body>
+</html>
